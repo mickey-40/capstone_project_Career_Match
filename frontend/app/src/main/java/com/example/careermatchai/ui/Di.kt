@@ -12,7 +12,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-private const val BASE_URL = "https://d424-software-engineering-capstone-tdvq.onrender.com"
+private const val BASE_URL = "https://capstone-project-career-match.onrender.com"
 
 private fun provideApiService(baseUrl: String = BASE_URL): ApiService {
     val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }

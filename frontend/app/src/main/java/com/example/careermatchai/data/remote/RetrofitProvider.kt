@@ -6,7 +6,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 // Expose the base URL so UI can build links (e.g., the HTML report)
-const val BASE_URL = "https://d424-software-engineering-capstone-tdvq.onrender.com"
+const val BASE_URL = "https://capstone-project-career-match.onrender.com"
 
 
 object RetrofitProvider {
