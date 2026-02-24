@@ -13,7 +13,8 @@ uvicorn app.main:app --reload
 ## Semantic Matching (v2)
 
 Semantic analysis uses local sentence-transformers embeddings.
-On first run, the model `all-MiniLM-L6-v2` is downloaded and cached.
+On first run, the model is downloaded and cached (default: `all-MiniLM-L3-v2`).
+You can override it with `SEMANTIC_MODEL=all-MiniLM-L6-v2` if you want higher quality.
 
 Enable semantic or hybrid strategy via `strategy` in the `/analyze` request:
 

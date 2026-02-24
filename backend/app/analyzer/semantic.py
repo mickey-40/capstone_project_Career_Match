@@ -3,6 +3,7 @@ from typing import Dict, List, Tuple
 import re
 
 from sentence_transformers import SentenceTransformer, util
+import os
 
 
 class BaseSemanticAnalyzer(ABC):
@@ -17,8 +18,9 @@ class SemanticAnalyzer(BaseSemanticAnalyzer):
     """
     _model: SentenceTransformer | None = None
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2", top_k: int = 5, missing_threshold: float = 0.45):
-        self.model_name = model_name
+    def __init__(self, model_name: str | None = None, top_k: int = 5, missing_threshold: float = 0.45):
+        # Default to a smaller model for production
+        self.model_name = model_name or os.getenv("SEMANTIC_MODEL", "all-MiniLM-L3-v2")
         self.top_k = top_k
         self.missing_threshold = missing_threshold
 
