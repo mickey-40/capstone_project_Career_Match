@@ -49,9 +49,13 @@ def analyze(req: AnalyzeRequest, db: Session = Depends(get_session), sub: str = 
   keyword_result = keyword_analyzer.run(req.resumeText, req.jobText)
 
   semantic_result = None
+  semantic_error = None
   if req.strategy in ("embedding", "hybrid"):
-    semantic_analyzer = SemanticAnalyzer()
-    semantic_result = semantic_analyzer.run(req.resumeText, req.jobText)
+    try:
+      semantic_analyzer = SemanticAnalyzer()
+      semantic_result = semantic_analyzer.run(req.resumeText, req.jobText)
+    except Exception as e:
+      semantic_error = str(e)
 
   keyword_block = {
     "score": keyword_result["readinessScore"],
@@ -59,7 +63,10 @@ def analyze(req: AnalyzeRequest, db: Session = Depends(get_session), sub: str = 
     "suggestions": keyword_result["suggestions"],
   }
 
-  semantic_block = semantic_result
+  if semantic_result is None and semantic_error:
+    semantic_block = {"score": 0.0, "topMatches": [], "missingConcepts": [], "error": semantic_error}
+  else:
+    semantic_block = semantic_result
   if semantic_result is None:
     overall = keyword_result["readinessScore"]
     note = "Semantic matching not enabled (strategy=keyword)."
