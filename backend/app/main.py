@@ -13,6 +13,7 @@ from .schemas import LoginRequest, Token, AnalyzeRequest, AnalysisOut, Paginated
 from .auth import verify_user, issue_token
 from .deps import get_current_user
 from .analyzer.keyword import KeywordAnalyzer
+from .analyzer.semantic import SemanticAnalyzer
 from . import reports
 
 
@@ -44,16 +45,44 @@ def login(body: LoginRequest):
 
 @app.post("/analyze", response_model=AnalysisOut)
 def analyze(req: AnalyzeRequest, db: Session = Depends(get_session), sub: str = Depends(get_current_user)):
-  analyzer = KeywordAnalyzer() # can switch to EmbeddingAnalyzer later
-  result = analyzer.run(req.resumeText, req.jobText)
+  keyword_analyzer = KeywordAnalyzer()
+  keyword_result = keyword_analyzer.run(req.resumeText, req.jobText)
+
+  semantic_result = None
+  if req.strategy in ("embedding", "hybrid"):
+    semantic_analyzer = SemanticAnalyzer()
+    semantic_result = semantic_analyzer.run(req.resumeText, req.jobText)
+
+  keyword_block = {
+    "score": keyword_result["readinessScore"],
+    "skills": keyword_result["skills"],
+    "suggestions": keyword_result["suggestions"],
+  }
+
+  semantic_block = semantic_result
+  if semantic_result is None:
+    overall = keyword_result["readinessScore"]
+    note = "Semantic matching not enabled (strategy=keyword)."
+  else:
+    overall = round((keyword_result["readinessScore"] + semantic_result.get("score", 0.0)) / 2, 3)
+    note = None
+
+  summary_block = {
+    "overallScore": overall,
+    "improvementNote": note,
+    "topGaps": [s["name"] for s in keyword_result["skills"] if s["matchType"] == "MISSING"][:5],
+  }
   row = Analysis(
     user_id=sub,
     resume_text=req.resumeText,
     job_text=req.jobText,
-    readiness_score=result["readinessScore"],
+    readiness_score=keyword_result["readinessScore"],
     summary_json=json.dumps({
-      "skills": result["skills"],
-      "suggestions": result["suggestions"],
+      "keyword": keyword_block,
+      "semantic": semantic_block,
+      "summary": summary_block,
+      "skills": keyword_result["skills"],
+      "suggestions": keyword_result["suggestions"],
     })
   )
   db.add(row)
@@ -65,8 +94,11 @@ def analyze(req: AnalyzeRequest, db: Session = Depends(get_session), sub: str = 
     "id": row.id,
     "readinessScore": row.readiness_score,
     "createdAt": row.created_at,
-    "skills": result["skills"],
-    "suggestions": result["suggestions"],
+    "skills": keyword_result["skills"],
+    "suggestions": keyword_result["suggestions"],
+    "keyword": keyword_block,
+    "semantic": semantic_block,
+    "summary": summary_block,
   }
 
 
@@ -79,7 +111,17 @@ def list_analyses(page: int = 1, size: int = 20, q: str | None = None, db: Sessi
     base = base.where(func.lower(Analysis.resume_text).like(like) | func.lower(Analysis.job_text).like(like))
   total = db.execute(base).scalars().all()
   rows = total[offset: offset+size]
-  items = [{"id": r.id, "readinessScore": r.readiness_score, "createdAt": r.created_at} for r in rows]
+  items = []
+  for r in rows:
+    summary = json.loads(r.summary_json or "{}")
+    items.append({
+      "id": r.id,
+      "readinessScore": r.readiness_score,
+      "createdAt": r.created_at,
+      "keywordScore": summary.get("keyword", {}).get("score") if summary.get("keyword") else None,
+      "semanticScore": summary.get("semantic", {}).get("score") if summary.get("semantic") else None,
+      "overallScore": summary.get("summary", {}).get("overallScore") if summary.get("summary") else None,
+    })
   return {"items": items, "total": len(total)}
 
 @app.get("/analyses/{analysis_id}", response_model=AnalysisOut)
@@ -99,6 +141,9 @@ def get_analysis(
         "createdAt": row.created_at,
         "skills": summary.get("skills", []),
         "suggestions": summary.get("suggestions", []),
+        "keyword": summary.get("keyword"),
+        "semantic": summary.get("semantic"),
+        "summary": summary.get("summary"),
     }
 
 
