@@ -80,9 +80,11 @@ class SemanticAnalyzer(BaseSemanticAnalyzer):
                     "confidence": round(1.0 - best, 3),
                 })
 
-        # Score: mean best similarity per job chunk
+        # Score: mean of top-N best similarities to avoid overly harsh averages
         best_scores = [float(sim[j_idx].max()) for j_idx in range(len(job_chunks))] if job_chunks else [0.0]
-        score = sum(best_scores) / max(len(best_scores), 1)
+        best_scores.sort(reverse=True)
+        top_n = min(max(self.top_k, 1), len(best_scores))
+        score = sum(best_scores[:top_n]) / max(top_n, 1)
 
         return {
             "score": round(score, 3),
