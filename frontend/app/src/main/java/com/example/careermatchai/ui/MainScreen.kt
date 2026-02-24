@@ -57,6 +57,7 @@ fun MainScreen(
     val context = LocalContext.current
     val isAuthed = s.token != null
     var query by rememberSaveable { mutableStateOf("") }
+    var useSemantic by rememberSaveable { mutableStateOf(false) }
 
     // feedback
     LaunchedEffect(s.error) { s.error?.let { snackbar.showSnackbar(it) } }
@@ -189,6 +190,27 @@ fun MainScreen(
                             }
                             Switch(checked = isDemo, onCheckedChange = { onToggleDemo() })
                         }
+                        // Semantic toggle
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Semantic matching", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "Uses local embeddings for deeper matching",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(checked = useSemantic, onCheckedChange = { useSemantic = it })
+                        }
+                        Text(
+                            "Note: first semantic run downloads the model and may take longer.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
                         val status = if (isAuthed) "Authenticated" else "Logged out"
                         Text(
@@ -210,7 +232,8 @@ fun MainScreen(
                             onClick = {
                                 viewModel.analyze(
                                     resume = "Python • FastAPI • Docker • Kubernetes • REST",
-                                    job = "Seeking Python / FastAPI / PostgreSQL backend engineer"
+                                    job = "Seeking Python / FastAPI / PostgreSQL backend engineer",
+                                    strategy = if (useSemantic) "embedding" else "keyword"
                                 )
                             },
                             enabled = isAuthed
@@ -223,6 +246,14 @@ fun MainScreen(
                             HorizontalDivider(Modifier.padding(top = 4.dp))
                             Text("Latest Result", style = MaterialTheme.typography.titleSmall)
                             ScoreBar(pct = normalizePct(s.analysis!!.readinessScore))
+                            val semanticScore = out.semantic?.score
+                            if (semanticScore != null) {
+                                Text(
+                                    "Keyword: ${fmtPct(out.readinessScore)} • Semantic: ${fmtPct(semanticScore)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                             Text(
                                 "Suggestions",
                                 style = MaterialTheme.typography.labelLarge,
@@ -473,6 +504,21 @@ private fun AnalysisRowCard(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
+            if (row.semanticScore != null || row.keywordScore != null) {
+                val keyword = row.keywordScore ?: row.readinessScore
+                val semantic = row.semanticScore
+                val line = if (semantic != null) {
+                    "Keyword: ${fmtPct(keyword)} • Semantic: ${fmtPct(semantic)}"
+                } else {
+                    "Keyword: ${fmtPct(keyword)}"
+                }
+                Text(
+                    line,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(6.dp))
+            }
             Text(
                 formatIso(row.createdAt),
                 style = MaterialTheme.typography.bodySmall,

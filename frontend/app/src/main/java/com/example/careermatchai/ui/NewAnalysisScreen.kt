@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
@@ -36,6 +37,7 @@ fun NewAnalysisScreen(
     var job by remember { mutableStateOf(TextFieldValue("")) }
     var submitting by remember { mutableStateOf(false) }
     var lastCreatedId by remember { mutableStateOf<String?>(null) }
+    var useSemantic by rememberSaveable { mutableStateOf(false) }
 
     // Autofill when Demo mode is ON and fields are empty
     LaunchedEffect(isDemo) {
@@ -84,6 +86,26 @@ fun NewAnalysisScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Semantic matching", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "Uses local embeddings for deeper matching",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = useSemantic, onCheckedChange = { useSemantic = it })
+                    }
+                    Text(
+                        "Note: first semantic run downloads the model and may take longer.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(
                             onClick = {
@@ -93,7 +115,11 @@ fun NewAnalysisScreen(
                                 }
                                 lastCreatedId = null
                                 submitting = true
-                                viewModel.analyze(resume.text, job.text)
+                                viewModel.analyze(
+                                    resume.text,
+                                    job.text,
+                                    strategy = if (useSemantic) "embedding" else "keyword"
+                                )
                             },
                             enabled = !submitting && (s.token != null)
                         ) { Text(if (submitting) "Submitting…" else "Run Analysis") }
@@ -124,6 +150,14 @@ fun NewAnalysisScreen(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Result", style = MaterialTheme.typography.titleMedium)
                         ScoreBar(pct = s.analysis!!.readinessScore)
+                        val semanticScore = s.analysis!!.semantic?.score
+                        if (semanticScore != null) {
+                            Text(
+                                "Keyword: ${fmtPct(s.analysis!!.readinessScore)} • Semantic: ${fmtPct(semanticScore)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             TextButton(onClick = {
                                 val url = BASE_URL.trimEnd('/') + "/reports/${s.analysis!!.id}"
@@ -137,4 +171,3 @@ fun NewAnalysisScreen(
         }
     }
 }
-

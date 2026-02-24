@@ -24,9 +24,9 @@ class Repository(
         tokenStore.clear()
     }
 
-    suspend fun analyze(resume: String, job: String): AnalysisOut {
+    suspend fun analyze(resume: String, job: String, strategy: String = "keyword"): AnalysisOut {
         val token = tokenStore.tokenFlow.firstOrNull() ?: error("Not authenticated")
-        return api.analyze("Bearer $token", AnalyzeRequest(resume, job))
+        return api.analyze("Bearer $token", AnalyzeRequest(resume, job, strategy))
     }
 
     suspend fun listAnalyses(page: Int, size: Int, q: String? = null): PaginatedAnalyses {

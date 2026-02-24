@@ -84,9 +84,9 @@ class MainViewModel(
         }
     }
 
-    fun analyze(resume: String, job: String) = viewModelScope.launch {
+    fun analyze(resume: String, job: String, strategy: String = "keyword") = viewModelScope.launch {
         update { it.copy(loading = true, error = null) }
-        runCatching { repo.analyze(resume, job) }
+        runCatching { repo.analyze(resume, job, strategy) }
             .onSuccess { out -> update { it.copy(loading = false, analysis = out) } }
             .onFailure { e -> update { it.copy(loading = false, error = e.message ?: "Analyze failed") } }
     }
