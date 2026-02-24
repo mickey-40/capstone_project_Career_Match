@@ -1,0 +1,32 @@
+# OS
+.DS_Store
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# Local env
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Node (if present)
+node_modules/
+
+# Android/Gradle
+.gradle/
+**/build/
+local.properties
+
+# Logs
+*.log
+
+# SQLite/dev db
+*.db
