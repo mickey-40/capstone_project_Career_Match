@@ -18,7 +18,7 @@ class SemanticAnalyzer(BaseSemanticAnalyzer):
     """
     _model: SentenceTransformer | None = None
 
-    def __init__(self, model_name: str | None = None, top_k: int = 5, missing_threshold: float = 0.45):
+    def __init__(self, model_name: str | None = None, top_k: int = 8, missing_threshold: float = 0.35):
         # Default to a smaller model for production
         self.model_name = model_name or os.getenv("SEMANTIC_MODEL", "all-MiniLM-L3-v2")
         self.top_k = top_k
@@ -31,13 +31,20 @@ class SemanticAnalyzer(BaseSemanticAnalyzer):
 
     def _chunk_text(self, text: str) -> List[str]:
         # Prefer paragraph splits; fall back to sentence-ish splits
+        full = text.strip()
         parts = [p.strip() for p in text.split("\n\n") if p.strip()]
         if len(parts) >= 2:
+            if full and full not in parts:
+                return [full] + parts
             return parts
         # Simple sentence splitting (keep minimal to avoid heavy deps)
         sentences = re.split(r"(?<=[.!?])\s+", text.strip())
         sentences = [s.strip() for s in sentences if s.strip()]
-        return sentences if sentences else [text.strip()]
+        if sentences:
+            if full and full not in sentences:
+                return [full] + sentences
+            return sentences
+        return [full] if full else [text.strip()]
 
     def _summarize_concept(self, text: str, max_words: int = 8) -> str:
         words = re.findall(r"[A-Za-z0-9+#\.]+", text)
