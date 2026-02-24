@@ -4,6 +4,14 @@ CareerMatch AI is a full-stack mobile app that helps job seekers compare a resum
 
 This capstone demonstrates end-to-end delivery across Android, API design, authentication, persistence, and testing.
 
+## Project Highlights
+
+- Built a full-stack Android + FastAPI system with auth, analysis, and reporting.
+- Designed an analysis pipeline that produces readiness scores and prioritized suggestions.
+- Implemented analysis history with pagination, search, and deletion.
+- Delivered shareable HTML/CSV reports for recruiters and users.
+- Shipped with automated tests plus documented manual/acceptance coverage.
+
 ## Quick Demo
 
 - Live API: `https://d424-software-engineering-capstone-tdvq.onrender.com`
