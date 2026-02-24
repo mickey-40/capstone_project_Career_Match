@@ -258,7 +258,7 @@ def report_html(analysis_id: str, db: Session = Depends(get_session)):
     ) or '<tr><td colspan="3">No semantic matches available</td></tr>'
 
     missing_concepts_html = "".join(
-        li(f\"{safe_str(m.get('concept'))} — {safe_str(m.get('evidence'))} (conf: {safe_str(m.get('confidence'))})\")
+        li(f"{safe_str(m.get('concept'))} — {safe_str(m.get('evidence'))} (conf: {safe_str(m.get('confidence'))})")
         for m in missing_concepts
         if isinstance(m, dict)
     ) or "<li>No missing concepts detected</li>"
