@@ -26,7 +26,7 @@ class SemanticAnalyzer(BaseSemanticAnalyzer):
 
     def __init__(self, model_name: str | None = None, top_k: int = 8, missing_threshold: float = 0.35):
         # Default to a smaller model for production
-        self.model_name = model_name or os.getenv("SEMANTIC_MODEL", "all-MiniLM-L3-v2")
+        self.model_name = model_name or os.getenv("SEMANTIC_MODEL", "all-MiniLM-L6-v2")
         self.top_k = top_k
         self.missing_threshold = missing_threshold
 
