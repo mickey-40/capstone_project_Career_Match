@@ -2,8 +2,14 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple
 import re
 
-from sentence_transformers import SentenceTransformer, util
 import os
+from typing import Any
+
+try:
+    from sentence_transformers import SentenceTransformer, util
+except ImportError:  # Optional dependency; allow keyword-only usage without embeddings.
+    SentenceTransformer = Any  # type: ignore[assignment]
+    util = None
 
 
 class BaseSemanticAnalyzer(ABC):
@@ -25,6 +31,10 @@ class SemanticAnalyzer(BaseSemanticAnalyzer):
         self.missing_threshold = missing_threshold
 
     def _get_model(self) -> SentenceTransformer:
+        if util is None:
+            raise RuntimeError(
+                "Semantic dependencies are not installed. Install sentence-transformers to use embedding strategy."
+            )
         if SemanticAnalyzer._model is None:
             SemanticAnalyzer._model = SentenceTransformer(self.model_name)
         return SemanticAnalyzer._model

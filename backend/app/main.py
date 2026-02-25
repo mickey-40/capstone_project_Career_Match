@@ -13,8 +13,14 @@ from .schemas import LoginRequest, Token, AnalyzeRequest, AnalysisOut, Paginated
 from .auth import verify_user, issue_token
 from .deps import get_current_user
 from .analyzer.keyword import KeywordAnalyzer
-from .analyzer.semantic import SemanticAnalyzer
 from . import reports
+
+try:
+  from .analyzer.semantic import SemanticAnalyzer
+  _semantic_import_error = None
+except Exception as e:
+  SemanticAnalyzer = None  # type: ignore[assignment]
+  _semantic_import_error = str(e)
 
 
 app = FastAPI(title="AI Resume Analyzer API", version="1.0.0")
@@ -52,6 +58,8 @@ def analyze(req: AnalyzeRequest, db: Session = Depends(get_session), sub: str = 
   semantic_error = None
   if req.strategy in ("embedding", "hybrid"):
     try:
+      if SemanticAnalyzer is None:
+        raise RuntimeError(_semantic_import_error or "Semantic analyzer is unavailable.")
       semantic_analyzer = SemanticAnalyzer()
       semantic_result = semantic_analyzer.run(req.resumeText, req.jobText)
     except Exception as e:
