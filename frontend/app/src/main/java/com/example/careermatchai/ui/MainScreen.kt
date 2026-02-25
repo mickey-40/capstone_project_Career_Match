@@ -7,7 +7,19 @@ import android.net.Uri
 import androidx.annotation.VisibleForTesting
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -18,11 +30,37 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,12 +97,11 @@ fun MainScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var useSemantic by rememberSaveable { mutableStateOf(false) }
 
-    // feedback
     LaunchedEffect(s.error) { s.error?.let { snackbar.showSnackbar(it) } }
     LaunchedEffect(s.analysis?.id) {
         s.analysis?.let {
             val pct = fmtPct(it.readinessScore)
-            snackbar.showSnackbar("Analysis complete • $pct")
+            snackbar.showSnackbar("Analysis complete - $pct")
         }
     }
     LaunchedEffect(query) {
@@ -72,7 +109,6 @@ fun MainScreen(
         viewModel.loadAnalyses(page = 1, q = query.takeIf { it.isNotBlank() })
     }
 
-    // ✅ Material 3 Pull-to-refresh state
     val isRefreshing = s.listLoading && s.page == 1
     val refreshState = rememberPullToRefreshState()
 
@@ -91,8 +127,6 @@ fun MainScreen(
         },
         snackbarHost = { SnackbarHost(hostState = snackbar) }
     ) { pad ->
-
-        // ✅ Use PullToRefreshBox (no .pullRefresh modifier / no external indicator)
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = { viewModel.reloadFirstPage() },
@@ -110,157 +144,107 @@ fun MainScreen(
                     .padding(16.dp)
                     .fillMaxWidth()
                     .verticalScroll(scroll),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // --- Auth / Prefs ---
-                ElevatedCard {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Welcome", style = MaterialTheme.typography.titleMedium)
+                SectionCard(title = "Sign In") {
+                    if (!isAuthed) {
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("Email") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Password") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            AssistChip(onClick = { viewModel.ping() }, label = { Text("Ping Backend") })
-                            val statusText = s.pingStatus?.ifBlank { "Unknown" } ?: "Unknown"
-                            AssistChip(onClick = {}, label = { Text("Health: $statusText") }, enabled = false)
-                        }
-
-                        if (!isAuthed) {
-                            OutlinedTextField(
-                                value = email,
-                                onValueChange = { email = it },
-                                label = { Text("Email") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            OutlinedTextField(
-                                value = password,
-                                onValueChange = { password = it },
-                                label = { Text("Password") },
-                                singleLine = true,
-                                visualTransformation = PasswordVisualTransformation(),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Button(
-                                onClick = {
-                                    if (!isAuthed && (email.isBlank() || password.isBlank())) {
-                                        scope.launch { snackbar.showSnackbar("Email and password required") }
-                                    } else {
-                                        viewModel.login(email, password)
-                                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                if (!isAuthed && (email.isBlank() || password.isBlank())) {
+                                    scope.launch { snackbar.showSnackbar("Email and password required") }
+                                } else {
+                                    viewModel.login(email, password)
                                 }
-                            ) { Text(if (isAuthed) "Re-login" else "Login") }
-
-                            if (isAuthed) {
-                                OutlinedButton(onClick = { viewModel.logout() }) { Text("Logout") }
                             }
-                        }
+                        ) { Text(if (isAuthed) "Re-login" else "Login") }
 
-                        // Theme toggle
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Dark theme", style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "Switch between light and dark",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(checked = isDark, onCheckedChange = { onToggleTheme() })
-                        }
-
-                        // Demo toggle
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Demo mode", style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "Prefill New Analysis with sample text",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(checked = isDemo, onCheckedChange = { onToggleDemo() })
-                        }
-                        // Semantic toggle
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text("Semantic matching", style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    "Uses local embeddings for deeper matching",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Switch(checked = useSemantic, onCheckedChange = { useSemantic = it })
-                        }
-                        Text(
-                            "Note: first semantic run downloads the model and may take longer.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        val status = if (isAuthed) "Authenticated" else "Logged out"
-                        Text(
-                            "Status: $status",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (isAuthed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (s.token != null) {
-                            Text("Token: ${s.token.take(12)}…", style = MaterialTheme.typography.bodySmall)
+                        if (isAuthed) {
+                            OutlinedButton(onClick = { viewModel.logout() }) { Text("Logout") }
                         }
                     }
                 }
 
-                // --- Quick analyze demo ---
-                ElevatedCard {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Quick Demo", style = MaterialTheme.typography.titleMedium)
+                if (isAuthed) {
+                    SectionCard(title = "Preferences") {
+                        LabeledSwitchRow(
+                            title = "Dark theme",
+                            subtitle = "Switch between light and dark",
+                            checked = isDark,
+                            onCheckedChange = { onToggleTheme() }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        LabeledSwitchRow(
+                            title = "Demo mode",
+                            subtitle = "Prefill new analysis with sample text",
+                            checked = isDemo,
+                            onCheckedChange = { onToggleDemo() }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        LabeledSwitchRow(
+                            title = "Semantic matching",
+                            subtitle = "Use embeddings for deeper matching",
+                            checked = useSemantic,
+                            onCheckedChange = { useSemantic = it }
+                        )
+                        Text(
+                            "First semantic run may take longer while model files load.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    SectionCard(title = "Quick Demo") {
                         Button(
                             onClick = {
                                 viewModel.analyze(
-                                    resume = "Python • FastAPI • Docker • Kubernetes • REST",
-                                    job = "Seeking Python / FastAPI / PostgreSQL backend engineer",
+                                    resume = "Python FastAPI Docker Kubernetes REST",
+                                    job = "Seeking Python FastAPI PostgreSQL backend engineer",
                                     strategy = if (useSemantic) "embedding" else "keyword"
                                 )
-                            },
-                            enabled = isAuthed
-                        ) { Text("Analyze Sample") }
-                        if (!isAuthed) {
-                            Text("Login to enable analysis and history.", style = MaterialTheme.typography.bodySmall)
-                        }
-
-                        s.analysis?.let { out ->
-                            HorizontalDivider(Modifier.padding(top = 4.dp))
-                            Text("Latest Result", style = MaterialTheme.typography.titleSmall)
-                            ScoreBar(pct = normalizePct(s.analysis!!.readinessScore))
-                            val semanticScore = out.semantic?.score
-                            if (semanticScore != null) {
-                                Text(
-                                    "Keyword: ${fmtPct(out.readinessScore)} • Semantic: ${fmtPct(semanticScore)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
+                        ) { Text("Analyze sample") }
+                    }
+                }
+
+                s.analysis?.let { out ->
+                    SectionCard(title = "Latest Result") {
+                        ScoreBar(pct = normalizePct(out.readinessScore))
+                        val semanticScore = out.semantic?.score
+                        if (semanticScore != null) {
+                            Spacer(Modifier.height(6.dp))
                             Text(
-                                "Suggestions",
-                                style = MaterialTheme.typography.labelLarge,
+                                "Keyword: ${fmtPct(out.readinessScore)}  Semantic: ${fmtPct(semanticScore)}",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Text(out.suggestions.joinToString { it.message })
                         }
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Suggestions",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(out.suggestions.joinToString { it.message })
                     }
                 }
 
@@ -268,14 +252,13 @@ fun MainScreen(
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
 
-                // --- History ---
                 if (isAuthed) {
                     AnalysesSection(
                         analyses = s.analyses,
                         loading = s.listLoading,
-                        error   = s.listError,
-                        page    = s.page,
-                        total   = s.total,
+                        error = s.listError,
+                        page = s.page,
+                        total = s.total,
                         pageSize = s.pageSize,
                         onPrev = { viewModel.prevPage() },
                         onNext = { viewModel.nextPage() },
@@ -311,7 +294,7 @@ fun MainScreen(
 @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
 @Composable
 internal fun AnalysesSection(
-    analyses: List<AnalysisRow>,   // ✅ fix generic syntax
+    analyses: List<AnalysisRow>,
     loading: Boolean,
     error: String?,
     page: Int,
@@ -334,123 +317,109 @@ internal fun AnalysesSection(
     var confirmDeleteId by remember { mutableStateOf<String?>(null) }
     val clipboard = LocalClipboardManager.current
 
-    ElevatedCard {
-        Column(Modifier.padding(16.dp)) {
-            // Header row
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("My Analyses", style = MaterialTheme.typography.titleMedium)
-                TextButton(onClick = onCreateNew) { Text("New Analysis") }
+    SectionCard(title = "My Analyses", headerAction = {
+        TextButton(onClick = onCreateNew) { Text("New analysis") }
+    }) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Search analyses") },
+            placeholder = { Text("Filter by keyword") },
+            trailingIcon = {
+                if (query.isNotBlank()) {
+                    TextButton(onClick = { onQueryChange("") }) { Text("Clear") }
+                }
             }
+        )
 
-            // Sort + page size row
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = (sort == Sort.DATE_DESC),
-                        onClick = { onChangeSort(Sort.DATE_DESC) },
-                        label = { Text("Newest") }
-                    )
-                    FilterChip(
-                        selected = (sort == Sort.SCORE_DESC),
-                        onClick = { onChangeSort(Sort.SCORE_DESC) },
-                        label = { Text("Top Score") }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = sort == Sort.DATE_DESC,
+                    onClick = { onChangeSort(Sort.DATE_DESC) },
+                    label = { Text("Newest") }
+                )
+                FilterChip(
+                    selected = sort == Sort.SCORE_DESC,
+                    onClick = { onChangeSort(Sort.SCORE_DESC) },
+                    label = { Text("Top score") }
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(10, 20).forEach { sz ->
+                    AssistChip(
+                        onClick = { onChangePageSize(sz) },
+                        enabled = pageSize != sz,
+                        label = { Text("$sz") }
                     )
                 }
+            }
+        }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(10, 20).forEach { sz ->
-                        AssistChip(
-                            onClick = { onChangePageSize(sz) },
-                            label = { Text("$sz") },
-                            enabled = pageSize != sz
+        when {
+            loading -> {
+                Spacer(Modifier.height(12.dp))
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            error != null -> {
+                Spacer(Modifier.height(12.dp))
+                Text("Error: $error", color = MaterialTheme.colorScheme.error)
+            }
+            analyses.isEmpty() -> {
+                Spacer(Modifier.height(12.dp))
+                EmptyState(
+                    title = "No analyses yet",
+                    subtitle = if (query.isBlank()) {
+                        "Run your first analysis to see it here."
+                    } else {
+                        "No results for '$query'."
+                    }
+                )
+            }
+            else -> {
+                Spacer(Modifier.height(10.dp))
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(analyses) { row ->
+                        val shareUrl = BASE_URL.trimEnd('/') + "/reports/${row.id}"
+                        AnalysisRowCard(
+                            row = row,
+                            onOpen = { onOpen(row.id) },
+                            onOpenReport = { onOpenReport(row.id) },
+                            onShare = { onShare(row.id) },
+                            onCopyLink = {
+                                clipboard.setText(AnnotatedString(shareUrl))
+                                onCopied()
+                            },
+                            onDelete = { confirmDeleteId = row.id }
                         )
                     }
                 }
             }
+        }
 
-            // Search
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search analyses") },
-                placeholder = { Text("Filter by keyword…") },
-                trailingIcon = {
-                    if (query.isNotBlank()) {
-                        TextButton(onClick = { onQueryChange("") }) { Text("Clear") }
-                    }
-                }
-            )
-
-            when {
-                loading -> {
-                    Spacer(Modifier.height(12.dp))
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                error != null -> {
-                    Spacer(Modifier.height(12.dp))
-                    Text("Error: $error", color = MaterialTheme.colorScheme.error)
-                }
-                analyses.isEmpty() -> {
-                    Spacer(Modifier.height(12.dp))
-                    EmptyState(
-                        title = "No analyses yet",
-                        subtitle = if (query.isBlank())
-                            "Run your first analysis to see it here."
-                        else
-                            "No results for “$query”."
-                    )
-                }
-                else -> {
-                    Spacer(Modifier.height(8.dp))
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 420.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(analyses) { row ->
-                            val shareUrl = BASE_URL.trimEnd('/') + "/reports/${row.id}"
-                            AnalysisRowCard(
-                                row = row,
-                                onOpen = { onOpen(row.id) },
-                                onOpenReport = { onOpenReport(row.id) },
-                                onShare = { onShare(row.id) },
-                                onCopyLink = {
-                                    clipboard.setText(AnnotatedString(shareUrl))
-                                    onCopied()
-                                },
-                                onDelete = { confirmDeleteId = row.id }
-                            )
-                        }
-                    }
-                }
-            }
-
-            val maxPage = ((total + pageSize - 1) / pageSize).coerceAtLeast(1)
-            Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Page $page / $maxPage", style = MaterialTheme.typography.bodySmall)
-                Row {
-                    OutlinedButton(onClick = onPrev, enabled = page > 1) { Text("Prev") }
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = onNext, enabled = page < maxPage) { Text("Next") }
-                }
+        val maxPage = ((total + pageSize - 1) / pageSize).coerceAtLeast(1)
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Page $page / $maxPage", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onPrev, enabled = page > 1) { Text("Prev") }
+                Button(onClick = onNext, enabled = page < maxPage) { Text("Next") }
             }
         }
     }
@@ -471,7 +440,63 @@ internal fun AnalysesSection(
     }
 }
 
-/* ---------- helpers ---------- */
+@Composable
+private fun SectionCard(
+    title: String,
+    headerAction: @Composable (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                headerAction?.invoke()
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun StatusChip(label: String, value: String) {
+    AssistChip(
+        onClick = {},
+        enabled = false,
+        label = { Text("$label: $value") }
+    )
+}
+
+@Composable
+private fun LabeledSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
 
 @Composable
 private fun AnalysisRowCard(
@@ -489,44 +514,48 @@ private fun AnalysisRowCard(
             .clip(RoundedCornerShape(16.dp))
             .clickable { onOpen() }
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(14.dp)) {
             Row(
-                Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Analysis", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Column {
+                    Text("Analysis", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        formatIso(row.createdAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 ScoreChip(pct = pct)
             }
+
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(
                 progress = { (pct / 100.0).toFloat() },
                 modifier = Modifier.fillMaxWidth()
             )
-            Spacer(Modifier.height(8.dp))
+
             if (row.semanticScore != null || row.keywordScore != null) {
+                Spacer(Modifier.height(8.dp))
                 val keyword = row.keywordScore ?: row.readinessScore
                 val semantic = row.semanticScore
-                val line = if (semantic != null) {
-                    "Keyword: ${fmtPct(keyword)} • Semantic: ${fmtPct(semantic)}"
+                val scoreLine = if (semantic != null) {
+                    "Keyword: ${fmtPct(keyword)}  Semantic: ${fmtPct(semantic)}"
                 } else {
                     "Keyword: ${fmtPct(keyword)}"
                 }
                 Text(
-                    line,
+                    scoreLine,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(6.dp))
             }
-            Text(
-                formatIso(row.createdAt),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenReport) { Text("Open Report") }
+
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                OutlinedButton(onClick = onOpenReport) { Text("Report") }
                 IconButton(onClick = onShare) { Icon(Icons.Outlined.Share, contentDescription = "Share") }
                 IconButton(onClick = onCopyLink) { Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy link") }
                 IconButton(
@@ -593,12 +622,12 @@ private fun ScoreChip(pct: Double) {
 private fun scoreColor(pct: Double): Color = when {
     pct >= 80 -> Color(0xFF2E7D32)
     pct >= 60 -> Color(0xFFF9A825)
-    else      -> Color(0xFFC62828)
+    else -> Color(0xFFC62828)
 }
 
 private fun formatIso(iso: String): String = try {
     val odt = OffsetDateTime.parse(iso)
-    odt.format(DateTimeFormatter.ofPattern("MMM d, yyyy • h:mm a"))
+    odt.format(DateTimeFormatter.ofPattern("MMM d, yyyy  h:mm a"))
 } catch (_: Throwable) {
     iso
 }
