@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from datetime import datetime
 import json
+import os
 
 # ⬇️ This line brings Base and engine into scope
 from .db import Base, engine, get_session
@@ -14,14 +15,6 @@ from .auth import verify_user, issue_token
 from .deps import get_current_user
 from .analyzer.keyword import KeywordAnalyzer
 from . import reports
-
-try:
-  from .analyzer.semantic import SemanticAnalyzer
-  _semantic_import_error = None
-except Exception as e:
-  SemanticAnalyzer = None  # type: ignore[assignment]
-  _semantic_import_error = str(e)
-
 
 app = FastAPI(title="AI Resume Analyzer API", version="1.0.0")
 
@@ -37,6 +30,18 @@ app.add_middleware(
 
 # Create tables on startup (simple dev approach)
 Base.metadata.create_all(bind=engine)
+
+
+def _is_enabled(name: str, default: bool = True) -> bool:
+  raw = os.getenv(name)
+  if raw is None:
+    return default
+  return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _load_semantic_analyzer():
+  from .analyzer.semantic import SemanticAnalyzer
+  return SemanticAnalyzer
 
 @app.get("/health", tags=["health"])
 def health():
@@ -54,16 +59,19 @@ def analyze(req: AnalyzeRequest, db: Session = Depends(get_session), sub: str = 
   keyword_analyzer = KeywordAnalyzer()
   keyword_result = keyword_analyzer.run(req.resumeText, req.jobText)
 
+  semantic_requested = req.strategy in ("embedding", "hybrid")
+  semantic_enabled = _is_enabled("ENABLE_SEMANTIC", default=True)
   semantic_result = None
   semantic_error = None
-  if req.strategy in ("embedding", "hybrid"):
+  if semantic_requested and semantic_enabled:
     try:
-      if SemanticAnalyzer is None:
-        raise RuntimeError(_semantic_import_error or "Semantic analyzer is unavailable.")
+      SemanticAnalyzer = _load_semantic_analyzer()
       semantic_analyzer = SemanticAnalyzer()
       semantic_result = semantic_analyzer.run(req.resumeText, req.jobText)
     except Exception as e:
       semantic_error = str(e)
+  elif semantic_requested and not semantic_enabled:
+    semantic_error = "Semantic matching is disabled by server configuration (ENABLE_SEMANTIC=false)."
 
   keyword_block = {
     "score": keyword_result["readinessScore"],
@@ -77,7 +85,12 @@ def analyze(req: AnalyzeRequest, db: Session = Depends(get_session), sub: str = 
     semantic_block = semantic_result
   if semantic_result is None:
     overall = keyword_result["readinessScore"]
-    note = "Semantic matching not enabled (strategy=keyword)."
+    if req.strategy == "keyword":
+      note = "Semantic matching not enabled (strategy=keyword)."
+    elif semantic_error:
+      note = "Semantic matching unavailable; using keyword score only."
+    else:
+      note = "Semantic matching did not run; using keyword score only."
   else:
     overall = round((keyword_result["readinessScore"] + semantic_result.get("score", 0.0)) / 2, 3)
     note = None

@@ -1,8 +1,10 @@
 from .keyword import KeywordAnalyzer
 
-try:
-    from .semantic import SemanticAnalyzer
-except Exception:  # Optional dependency may be unavailable in lightweight environments.
-    SemanticAnalyzer = None  # type: ignore[assignment]
-
 __all__ = ["KeywordAnalyzer", "SemanticAnalyzer"]
+
+
+def __getattr__(name: str):
+    if name == "SemanticAnalyzer":
+        from .semantic import SemanticAnalyzer
+        return SemanticAnalyzer
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
