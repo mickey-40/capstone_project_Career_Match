@@ -28,6 +28,7 @@ fun NewAnalysisScreen(
     demoJob: String
 ) {
     val s = viewModel.state
+    val semanticAvailable = isLocalBackend(BASE_URL)
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -93,18 +94,28 @@ fun NewAnalysisScreen(
                         Column {
                             Text("Semantic matching", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "Uses local embeddings for deeper matching",
+                                if (semanticAvailable) {
+                                    "Uses local embeddings for deeper matching"
+                                } else {
+                                    "Local backend only (disabled on hosted backend)"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(checked = useSemantic, onCheckedChange = { useSemantic = it })
+                        Switch(
+                            checked = useSemantic,
+                            onCheckedChange = { useSemantic = it },
+                            enabled = semanticAvailable
+                        )
                     }
-                    Text(
-                        "Note: first semantic run downloads the model and may take longer.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (semanticAvailable) {
+                        Text(
+                            "Note: first semantic run downloads the model and may take longer.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(
@@ -118,7 +129,7 @@ fun NewAnalysisScreen(
                                 viewModel.analyze(
                                     resume.text,
                                     job.text,
-                                    strategy = if (useSemantic) "embedding" else "keyword"
+                                    strategy = if (semanticAvailable && useSemantic) "embedding" else "keyword"
                                 )
                             },
                             enabled = !submitting && (s.token != null)
@@ -170,4 +181,9 @@ fun NewAnalysisScreen(
             }
         }
     }
+}
+
+private fun isLocalBackend(baseUrl: String): Boolean {
+    val host = Uri.parse(baseUrl).host.orEmpty().lowercase()
+    return host in setOf("10.0.2.2", "127.0.0.1", "localhost")
 }

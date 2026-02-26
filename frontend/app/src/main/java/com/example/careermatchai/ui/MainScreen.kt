@@ -90,6 +90,7 @@ fun MainScreen(
     demoJob: String
 ) {
     val s = viewModel.state
+    val semanticAvailable = isLocalBackend(BASE_URL)
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -202,15 +203,22 @@ fun MainScreen(
                         Spacer(Modifier.height(8.dp))
                         LabeledSwitchRow(
                             title = "Semantic matching",
-                            subtitle = "Use embeddings for deeper matching",
+                            subtitle = if (semanticAvailable) {
+                                "Use embeddings for deeper matching"
+                            } else {
+                                "Local backend only (disabled on hosted backend)"
+                            },
                             checked = useSemantic,
-                            onCheckedChange = { useSemantic = it }
+                            onCheckedChange = { useSemantic = it },
+                            enabled = semanticAvailable
                         )
-                        Text(
-                            "First semantic run may take longer while model files load.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (semanticAvailable) {
+                            Text(
+                                "First semantic run may take longer while model files load.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
 
                     SectionCard(title = "Quick Demo") {
@@ -219,7 +227,7 @@ fun MainScreen(
                                 viewModel.analyze(
                                     resume = "Python FastAPI Docker Kubernetes REST",
                                     job = "Seeking Python FastAPI PostgreSQL backend engineer",
-                                    strategy = if (useSemantic) "embedding" else "keyword"
+                                    strategy = if (semanticAvailable && useSemantic) "embedding" else "keyword"
                                 )
                             }
                         ) { Text("Analyze sample") }
@@ -478,7 +486,8 @@ private fun LabeledSwitchRow(
     title: String,
     subtitle: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -494,7 +503,7 @@ private fun LabeledSwitchRow(
             )
         }
         Spacer(Modifier.width(12.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }
 
@@ -630,4 +639,9 @@ private fun formatIso(iso: String): String = try {
     odt.format(DateTimeFormatter.ofPattern("MMM d, yyyy  h:mm a"))
 } catch (_: Throwable) {
     iso
+}
+
+private fun isLocalBackend(baseUrl: String): Boolean {
+    val host = Uri.parse(baseUrl).host.orEmpty().lowercase()
+    return host in setOf("10.0.2.2", "127.0.0.1", "localhost")
 }
