@@ -29,6 +29,9 @@ class SemanticAnalyzer(BaseSemanticAnalyzer):
         self.model_name = model_name or os.getenv("SEMANTIC_MODEL", "all-MiniLM-L6-v2")
         self.top_k = top_k
         self.missing_threshold = missing_threshold
+        self.max_chars = int(os.getenv("SEMANTIC_MAX_CHARS", "5000"))
+        self.max_chunks = int(os.getenv("SEMANTIC_MAX_CHUNKS", "20"))
+        self.max_chunk_chars = int(os.getenv("SEMANTIC_MAX_CHUNK_CHARS", "500"))
 
     def _get_model(self) -> SentenceTransformer:
         if util is None:
@@ -41,20 +44,25 @@ class SemanticAnalyzer(BaseSemanticAnalyzer):
 
     def _chunk_text(self, text: str) -> List[str]:
         # Prefer paragraph splits; fall back to sentence-ish splits
-        full = text.strip()
-        parts = [p.strip() for p in text.split("\n\n") if p.strip()]
+        clipped = (text or "")[: self.max_chars]
+        full = clipped.strip()
+        parts = [p.strip() for p in clipped.split("\n\n") if p.strip()]
         if len(parts) >= 2:
-            if full and full not in parts:
-                return [full] + parts
-            return parts
+            chunks = ([full] + parts) if (full and full not in parts) else parts
+            return self._finalize_chunks(chunks)
         # Simple sentence splitting (keep minimal to avoid heavy deps)
-        sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+        sentences = re.split(r"(?<=[.!?])\s+", full)
         sentences = [s.strip() for s in sentences if s.strip()]
         if sentences:
-            if full and full not in sentences:
-                return [full] + sentences
-            return sentences
-        return [full] if full else [text.strip()]
+            chunks = ([full] + sentences) if (full and full not in sentences) else sentences
+            return self._finalize_chunks(chunks)
+        return self._finalize_chunks([full] if full else [clipped.strip()])
+
+    def _finalize_chunks(self, chunks: List[str]) -> List[str]:
+        trimmed = [c[: self.max_chunk_chars] for c in chunks if c and c.strip()]
+        if not trimmed:
+            return [""]
+        return trimmed[: self.max_chunks]
 
     def _summarize_concept(self, text: str, max_words: int = 8) -> str:
         words = re.findall(r"[A-Za-z0-9+#\.]+", text)
