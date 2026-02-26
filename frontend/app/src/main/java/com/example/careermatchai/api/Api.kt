@@ -13,7 +13,7 @@ interface HealthService {
 
 object Api {
     // Emulator -> host loopback
-    private const val BASE_URL = "https://d424-software-engineering-capstone-tdvq.onrender.com"
+    private const val BASE_URL = "https://capstone-project-career-match.onrender.com"
 
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

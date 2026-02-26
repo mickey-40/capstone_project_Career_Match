@@ -14,8 +14,8 @@ This capstone demonstrates end-to-end delivery across Android, API design, authe
 
 ## Quick Demo
 
-- Live API: `https://d424-software-engineering-capstone-tdvq.onrender.com`
-- Swagger docs: `https://d424-software-engineering-capstone-tdvq.onrender.com/docs`
+- Live API: `https://capstone-project-career-match.onrender.com`
+- Swagger docs: `https://capstone-project-career-match.onrender.com/docs`
 - HTML report: `GET /reports/{analysis_id}`
 
 Fastest walkthrough:
